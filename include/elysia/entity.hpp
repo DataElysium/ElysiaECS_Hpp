@@ -3,6 +3,7 @@
 #include <compare>
 #include <cstdint>
 #include <functional>
+#include <limits>
 
 #include "elysia/detail/api.hpp"
 
@@ -19,7 +20,7 @@ struct Entity {
     static constexpr uint32_t VERSION_BITS = 16;
     static constexpr uint32_t TAG_BITS = 16;
 
-    static constexpr uint64_t NULL_VALUE = 0;
+    static constexpr uint64_t NULL_VALUE = std::numeric_limits<uint64_t>::max();
 
     constexpr Entity() : value(NULL_VALUE) {}
     constexpr explicit Entity(uint64_t v) : value(v) {}

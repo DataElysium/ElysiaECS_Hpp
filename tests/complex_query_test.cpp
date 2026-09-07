@@ -3,6 +3,8 @@
 #include <vector>
 #include "elysia/elysia.hpp"
 
+namespace elysia_test::complex_query_test {
+
 using namespace elysia;
 namespace complex_query{
 struct TagA { int val; };
@@ -75,3 +77,5 @@ TEST(ElysiaComplexQuery, StructuralMigrationDuringQuery) {
     });
     EXPECT_EQ(count, 100);
 }
+
+} // namespace elysia_test::complex_query_test

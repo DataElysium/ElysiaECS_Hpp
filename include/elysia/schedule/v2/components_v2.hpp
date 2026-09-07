@@ -1,15 +1,13 @@
 #pragma once
-//module;
+#include "elysia/world.hpp"
+
 #include <functional>
 #include <vector>
 #include <memory>
 #include <string>
 
-//export module elysia.schedule.components;
- 
 
-//import elysia.world;
- 
+// WorldView is defined in elysia.world (imported above) — no re-definition needed.
 
 namespace elysia::schedule {
 
@@ -32,7 +30,7 @@ struct SysExecutor {
 
 using RunClosure = std::function<Result<void>(World*, void*, void*)>;
 struct SysFactory {
-    std::function<RunClosure(World*)> func;
+    std::function<RunClosure(World*, std::shared_ptr<void>& query)> func;
 };
 
 struct SysStatus {

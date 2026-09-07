@@ -50,6 +50,25 @@ public:
         init();
     }
 
+    ~CommandBuffer() { clear(); }
+    CommandBuffer(const CommandBuffer&) = delete;
+    CommandBuffer& operator=(const CommandBuffer&) = delete;
+    CommandBuffer(CommandBuffer&&) noexcept = default;
+
+    CommandBuffer& operator=(CommandBuffer&& other) noexcept {
+        if (this != &other) {
+            // Keep the old allocator alive until its payloads and arena have
+            // been destroyed, including when buffers use different allocators.
+            CommandBuffer previous(std::move(other));
+            std::swap(index_, previous.index_);
+            upstream_.swap(previous.upstream_);
+            res_p_.swap(previous.res_p_);
+            headers_.swap(previous.headers_);
+            meta_stream_.swap(previous.meta_stream_);
+        }
+        return *this;
+    }
+
     void set_index(EntityIndex* index) { index_ = index; }
     EntityIndex* index() const { return index_; }
 
@@ -145,6 +164,7 @@ public:
     }
 
     void clear() {
+        if (!meta_stream_) return; // Moved-from buffers own no payloads.
         for (const auto& meta : *meta_stream_) if (meta.eraser) meta.eraser(meta.payload_ptr);
         headers_->clear();
         meta_stream_->clear();

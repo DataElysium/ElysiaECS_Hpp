@@ -106,6 +106,7 @@ public:
     }
 
     [[nodiscard]] Result<Entity> spawn_at(Entity e) {
+        if (!e.is_valid()) return Result<Entity>::err(ErrorCode::InvalidOperation, "Cannot spawn a null entity");
         uint32_t id = e.id();
         if (id >= records_.size()) grow(id + 1);
 
@@ -115,7 +116,8 @@ public:
             return Result<Entity>::err(ErrorCode::AlreadyExists, "Entity ID already active");
         }
 
-        auto it = std::find(recycled_ids_.begin() + recycled_head_.load(), recycled_ids_.end(), id);
+        const size_t search_start = std::min(recycled_head_.load(), recycled_ids_.size());
+        auto it = std::find(recycled_ids_.begin() + search_start, recycled_ids_.end(), id);
         if (it != recycled_ids_.end()) {
             recycled_ids_.erase(it);
         }
@@ -133,6 +135,7 @@ public:
     }
 
     void free(Entity e) {
+        if (!e.is_valid()) return;
         uint32_t id = e.id();
         if (id >= records_.size()) return;
         EntityRecord& rec = records_[id];
@@ -140,7 +143,7 @@ public:
 
         rec.active = false;
         rec.version++;
-        recycled_ids_.push_back(id);
+        recycle(id);
     }
 
     void free_id(uint32_t id) {
@@ -150,7 +153,7 @@ public:
 
         rec.active = false;
         rec.version++;
-        recycled_ids_.push_back(id);
+        recycle(id);
     }
 
     void cleanup_recycled_pool() {
@@ -183,6 +186,7 @@ public:
     }
 
     void update(Entity e, void* arch, uint32_t row) {
+        if (!e.is_valid()) return;
         uint32_t id = e.id();
         if (id >= records_.size()) grow(id + 1);
         records_[id].archetype = arch;
@@ -192,6 +196,7 @@ public:
     }
 
     [[nodiscard]] Result<EntityRecord*> lookup(Entity e) {
+        if (!e.is_valid()) return Result<EntityRecord*>::err(ErrorCode::NotFound, "Null entity");
         uint32_t id = e.id();
         if (id >= records_.size()) return Result<EntityRecord*>::err(ErrorCode::NotFound, "Out of range");
         EntityRecord& rec = records_[id];
@@ -200,6 +205,7 @@ public:
     }
 
     [[nodiscard]] bool is_alive(Entity e) const {
+        if (!e.is_valid()) return false;
         uint32_t id = e.id();
         if (id >= records_.size()) return false;
         const auto& rec = records_[id];
@@ -215,6 +221,13 @@ public:
     const std::vector<uint32_t>& recycled_ids() const { return recycled_ids_; }
 
 private:
+    // Reservation misses must not consume IDs freed afterward.
+    void recycle(uint32_t id) {
+        if (recycled_head_.load(std::memory_order_relaxed) > recycled_ids_.size())
+            recycled_head_.store(recycled_ids_.size(), std::memory_order_relaxed);
+        recycled_ids_.push_back(id);
+    }
+
     std::vector<EntityRecord> records_;
     std::vector<uint32_t> recycled_ids_;
     alignas(128) std::atomic<size_t> recycled_head_{0};

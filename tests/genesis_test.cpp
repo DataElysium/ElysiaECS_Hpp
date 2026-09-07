@@ -3,6 +3,8 @@
 
 #include "elysia/elysia.hpp"
 
+namespace elysia_test::genesis_test {
+
 TEST(ElysiaGenesis, EntityBitFields) {
     using namespace elysia;
 
@@ -16,3 +18,5 @@ TEST(ElysiaGenesis, EntityBitFields) {
 }
 
 struct Position { float x, y; };
+
+} // namespace elysia_test::genesis_test

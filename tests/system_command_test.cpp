@@ -2,6 +2,8 @@
 #include "elysia/elysia.hpp"
 #include <vector>
 
+namespace elysia_test::system_command_test {
+
 
 using namespace elysia;
 
@@ -39,3 +41,5 @@ TEST(SystemBuilder, CommandBufferInjection) {
     auto* tag = world.get_component<Tag>(e);
     ASSERT_NE(tag, nullptr);
 }
+
+} // namespace elysia_test::system_command_test

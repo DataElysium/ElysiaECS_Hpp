@@ -1,8 +1,7 @@
 #pragma once
 // Shared test component types for header-only tests.
-// In cppm mode each .cpp is a separate module, so duplicate names are fine.
-// In header-only mode all headers are merged into one TU via include guard,
-// so we must define shared components in exactly ONE place to avoid ODR issues.
+// Share a component only when its definition is identical across translation units.
+// Unrelated test types use per-file namespaces in both header and module builds.
 
 namespace elysia::test {
 

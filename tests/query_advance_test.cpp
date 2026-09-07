@@ -2,6 +2,8 @@
 #include <vector>
 #include "elysia/elysia.hpp"
 
+namespace elysia_test::query_advance_test {
+
 using namespace elysia;
 
 struct TestPos47 { float x, y; };
@@ -59,3 +61,5 @@ TEST(ElysiaQuery4_7, ConstCorrectness) {
         EXPECT_EQ(p.x, 100);
     });
 }
+
+} // namespace elysia_test::query_advance_test

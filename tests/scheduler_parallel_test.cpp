@@ -3,6 +3,8 @@
 #include <atomic>
 #include <thread>
 
+namespace elysia_test::scheduler_parallel_test {
+
 
 using namespace elysia;
 
@@ -80,3 +82,4 @@ TEST(ElysiaScheduler, ParallelStructuralConsistency) {
     EXPECT_NE(world.get_component<Tag2>(e), nullptr);
 }
 
+} // namespace elysia_test::scheduler_parallel_test

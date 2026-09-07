@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include "elysia/elysia.hpp"
+#include <gtest/gtest.h>
 #include <atomic>
 #include <vector>
 #include <unordered_set>
@@ -234,4 +234,3 @@ TEST(SchedulerSpawnDespawn, DropArchetypesWithComponentClearsWholeTables) {
     world.query<Entity>().filter<With<DropTableTag>>().each([&](Entity) { tagged++; });
     EXPECT_EQ(tagged, 1);
 }
-

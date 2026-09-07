@@ -3,6 +3,8 @@
 
 #include "elysia/elysia.hpp"
 
+namespace elysia_test::world_test {
+
 using namespace elysia;
 
 struct Pos { float x, y; };
@@ -87,3 +89,5 @@ TEST(ElysiaWorldHeader, QueryIteration) {
 
     EXPECT_EQ(count, 50);
 }
+
+} // namespace elysia_test::world_test

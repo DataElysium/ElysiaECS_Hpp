@@ -713,6 +713,11 @@ inline void WorldBatchAccessor::spawn_bundle(Entity e, std::span<const TypeInfo*
     auto* arch = world->graph().get_or_create(types);
     if (!arch) return;
 
+    // Claim the ID through the same lifecycle checks as a plain spawn. This
+    // also advances the allocation counter and removes explicitly reused IDs
+    // from the available recycled pool.
+    if (world->index().spawn_at(e).is_err()) return;
+
     auto res_lookup = world->index().lookup(e);
     if (res_lookup.is_ok()) {
         EntityRecord* rec = res_lookup.unwrap();
@@ -722,7 +727,14 @@ inline void WorldBatchAccessor::spawn_bundle(Entity e, std::span<const TypeInfo*
                 auto modifier = old_arch->modify();
                 auto moved_entity = modifier.swap_remove(rec->row);
                 if (moved_entity) world->index().update(*moved_entity, old_arch, rec->row);
-                rec->archetype = nullptr;
+                rec->archetype = nullptr; // Clear before re-assigning
+            } else {
+                // Replace components in the existing row, including their
+                // destructors and OnAdd notifications, without appending it.
+                for (size_t k = 0; k < types.size(); ++k) {
+                    world->add_component_dynamic(e, types[k], datas[k]);
+                }
+                return;
             }
         }
     }
@@ -748,6 +760,7 @@ inline void WorldBatchAccessor::spawn_bundle(Entity e, std::span<const TypeInfo*
     }
     world->index().update(e, arch, static_cast<uint32_t>(row));
 
+    // 🌸 Notify OnAdd for all components in the bundle
     for (const auto* type : types) {
         world->observer_registry_.notify(ObserverEvent::OnAdd, type->id, e);
     }
@@ -780,6 +793,10 @@ inline void execute_buffer_internal(World& world, CommandBuffer& input, CommandB
                         const auto* meta = input.get_meta(next_h.meta_index);
                         assert(meta);
                         const auto* info = static_cast<const TypeInfo*>(meta->metadata);
+                        // Repeated inserts must execute as replacements, not duplicate columns.
+                        if (std::any_of(fused_types.begin(), fused_types.end(),
+                            [info](const TypeInfo* type) { return type->id == info->id; })) break;
+
                         auto it_dec = world.decorators_.find(info->id);
                         if (it_dec != world.decorators_.end()) {
                             it_dec->second(world, output, target, input.get_payload(*meta));

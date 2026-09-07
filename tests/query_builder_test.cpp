@@ -2,6 +2,8 @@
 #include <vector>
 #include "elysia/elysia.hpp"
 
+namespace elysia_test::query_builder_test {
+
 using namespace elysia;
 namespace elysia_query_builder_test {
 struct Position { float value; };
@@ -44,3 +46,5 @@ TEST(ElysiaQueryBuilder, DynamicFilterAPI) {
     EXPECT_EQ(count, 1);
     EXPECT_EQ(p1->value, 15.0f);
 }
+
+} // namespace elysia_test::query_builder_test
