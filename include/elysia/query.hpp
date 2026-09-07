@@ -221,7 +221,7 @@ private:
 
     template <size_t... Is, typename WorldPtr>
     auto resolve_resources(WorldPtr* world, std::index_sequence<Is...>) {
-        if constexpr (ResCount > 0) return std::make_tuple(world->template get_resource<std::tuple_element_t<Is, ResTuple>>()...);
+        if constexpr (ResCount > 0) return std::make_tuple(detail::checked_resource(world->template get_resource<std::tuple_element_t<Is, ResTuple>>())...);
         else return std::make_tuple();
     }
 

@@ -12,6 +12,7 @@
 namespace elysia::schedule {
 
 enum class ThreadingModel { Parallel, Exclusive };
+enum class ThreadAffinity { Any, Caller };
 enum class SpecialSystemKind { None, ApplyDeferred };
 
 struct SysName { std::string value; };
@@ -26,6 +27,7 @@ struct SysExecutor {
     std::function<Result<void>(World*, void* resources, void* commands)> func;
     ThreadingModel threading = ThreadingModel::Parallel;
     SpecialSystemKind kind = SpecialSystemKind::None;
+    ThreadAffinity affinity = ThreadAffinity::Any;
 };
 
 using RunClosure = std::function<Result<void>(World*, void*, void*)>;
