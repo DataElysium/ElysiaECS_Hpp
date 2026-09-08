@@ -81,18 +81,15 @@ public:
         GenericCodec gc;
         gc.to_generic = [](const void* ptr) {
             T1 proxy = T1::from(*static_cast<const T*>(ptr));
-            auto json = reflect::write_json(proxy);
-            return reflect::read_json<reflect::Generic>(json).value();
+            return reflect::to_generic(proxy);
         };
         gc.from_generic = [](World& w, Entity e, const reflect::Generic& g) -> Result<void> {
-            auto json = reflect::write_json(g);
-            auto res = reflect::read_json<T1>(json);
+            auto res = reflect::from_generic<T1>(g);
             if (res) { w.entity(e).add(res->into()); return Result<void>::ok(); }
             return Result<void>::err(ErrorCode::InternalError, "Proxy deserialization failed");
         };
         gc.from_generic_cmd = [](CommandBuffer& cmd, Entity e, const reflect::Generic& g) -> Result<void> {
-            auto json = reflect::write_json(g);
-            auto res = reflect::read_json<T1>(json);
+            auto res = reflect::from_generic<T1>(g);
             if (res) { cmd.insert(e, res->into()); return Result<void>::ok(); }
             return Result<void>::err(ErrorCode::InternalError, "Proxy deserialization failed");
         };
@@ -145,18 +142,15 @@ private:
     void enable_generic_codec(ComponentFactory& fac) {
         GenericCodec c;
         c.to_generic = [](const void* ptr) {
-            auto json = reflect::write_json(*static_cast<const T*>(ptr));
-            return reflect::read_json<reflect::Generic>(json).value();
+            return reflect::to_generic(*static_cast<const T*>(ptr));
         };
         c.from_generic = [](World& w, Entity e, const reflect::Generic& g) -> Result<void> {
-            auto json = reflect::write_json(g);
-            auto res = reflect::read_json<T>(json);
+            auto res = reflect::from_generic<T>(g);
             if (res) { w.entity(e).add(std::move(*res)); return Result<void>::ok(); }
             return Result<void>::err(ErrorCode::InternalError, "Deserialization failed");
         };
         c.from_generic_cmd = [](CommandBuffer& cmd, Entity e, const reflect::Generic& g) -> Result<void> {
-            auto json = reflect::write_json(g);
-            auto res = reflect::read_json<T>(json);
+            auto res = reflect::from_generic<T>(g);
             if (res) { cmd.insert(e, std::move(*res)); return Result<void>::ok(); }
             return Result<void>::err(ErrorCode::InternalError, "Deserialization failed");
         };
@@ -181,12 +175,10 @@ private:
     void enable_resource_codec(ComponentFactory& fac) {
         GenericCodec c;
         c.to_generic = [](const void* ptr) {
-            auto json = reflect::write_json(*static_cast<const T*>(ptr));
-            return reflect::read_json<reflect::Generic>(json).value();
+            return reflect::to_generic(*static_cast<const T*>(ptr));
         };
         c.from_generic = [](World& w, Entity, const reflect::Generic& g) -> Result<void> {
-            auto json = reflect::write_json(g);
-            auto res = reflect::read_json<T>(json);
+            auto res = reflect::from_generic<T>(g);
             if (res) { w.add_resource(std::move(*res)); return Result<void>::ok(); }
             return Result<void>::err(ErrorCode::InternalError, "Resource deserialization failed");
         };

@@ -8,12 +8,17 @@
 #include <rfl/toml.hpp>
 #include <rfl/msgpack.hpp>
 #include <rfl/Generic.hpp>
+#include <rfl/to_generic.hpp>
+#include <rfl/from_generic.hpp>
 #ifdef ELYSIA_ENABLE_CAPNPROTO
 #include <rfl/capnproto.hpp>
 #endif
 
 namespace elysia::reflect {
 using Generic = rfl::Generic;
+
+    template<typename T> inline Generic to_generic(const T& obj) { return rfl::to_generic(obj); }
+    template<typename T> inline auto from_generic(const Generic& value) { return rfl::from_generic<T>(value); }
 
 template <typename T> inline std::string write_json(const T& obj) { return rfl::json::write(obj); }
 template <typename T> inline auto read_json(const std::string& json) { return rfl::json::read<T>(json); }

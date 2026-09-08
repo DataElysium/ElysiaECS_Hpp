@@ -53,7 +53,7 @@ inline WorldArchive AuroraArchive::create(World& world, const SnapshotRegistry& 
         for (auto* fac : active) blob_def.components.push_back(fac->key);
         if (config.format == Config::Format::Csv) { re.format = "csv"; re.encoding = "utf-8"; re.blob = export_archetype_to_csv(*arch, active); }
         else if (config.format == Config::Format::Raw) { re.format = "raw_v3"; re.encoding = "base64"; auto bytes = RawTableCodec::export_archetype(*arch, active); re.blob = base64_encode(std::string(bytes.begin(), bytes.end())); }
-        else { auto col_data = export_archetype_to_columnar(*arch, active); re.format = "columnar"; re.encoding = "raw"; auto json = reflect::write_json(col_data); auto generic_opt = reflect::read_json<reflect::Generic>(json); if (generic_opt) re.data = *generic_opt; }
+        else { auto col_data = export_archetype_to_columnar(*arch, active); re.format = "columnar"; re.encoding = "raw"; re.data = reflect::to_generic(col_data); }
         archive.embed[res_name] = std::move(re); archive.archetypes.push_back(std::move(blob_def));
     }
     return archive;
