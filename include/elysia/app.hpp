@@ -4,6 +4,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <stdexcept>
+#include <utility>
 
 #include "elysia/observer.hpp"
 #include "elysia/schedule/v2/schedule_main.hpp"
@@ -58,6 +60,26 @@ public:
         return *this;
     }
 
+    // The runner owns loop policy; update() remains a single scheduled step.
+    using Runner = std::function<void(App&)>;
+
+    App& set_runner(Runner runner) {
+        if (is_running_) throw std::logic_error("Cannot replace an active App runner");
+        runner_ = std::move(runner);
+        return *this;
+    }
+
+    void run() {
+        if (is_running_) throw std::logic_error("App::run cannot be called recursively");
+        is_running_ = true;
+        struct Reset {
+            bool& running;
+            ~Reset() { running = false; }
+        } reset{is_running_};
+        if (runner_) runner_(*this);
+        else update();
+    }
+
     void init_serial() {
         if (!is_started_) {
             auto startup_exec = SerialExecutor::build_from(startup_scheduler_);
@@ -95,6 +117,8 @@ private:
     std::shared_ptr<ScheduleRuntime> runtime_;
     std::unique_ptr<SerialExecutor> executor_;
     std::unique_ptr<TaskflowExecutor> parallel_executor_;
+    Runner runner_;
+    bool is_running_ = false;
     bool is_started_ = false;
     bool use_parallel_ = false;
 };
