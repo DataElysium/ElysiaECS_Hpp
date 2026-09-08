@@ -53,8 +53,7 @@ struct InductorInput { double henries; };
 elysia::archive::SnapshotRegistry case_types;
 case_types.register_type<InductorInput>("electrical::Inductor");
 
-elysia::prefab::ComponentRegistry components(case_types);
-elysia::prefab::PrefabRegistry prefabs(std::move(components));
+elysia::prefab::PrefabRegistry prefabs(case_types);
 prefabs.load_library(elysia::prefab::read_library(
     elysia::prefab::parse_json(R"({
       "electrical::branch": {
@@ -83,8 +82,37 @@ to the native full name only when the application supplies no registration name.
 
 Prefabs and component names use separate symbol tables. Prefab `Use` lookup is
 qualified exact, current prefab namespace, then global. No compiler namespace is
-automatically imported. Registry snapshots are copied into `ComponentRegistry`;
-changes to the original registry do not silently change the loaded contract.
+automatically imported. `PrefabRegistry(registry)` borrows an application-owned `SnapshotRegistry`.
+Archive operations and multiple prefab libraries can use the same instance:
+
+```cpp
+elysia::archive::SnapshotRegistry archive;
+elysia::prefab::PrefabRegistry game_prefabs(archive);
+elysia::prefab::PrefabRegistry editor_prefabs(archive);
+
+// Both libraries see registrations added after construction.
+archive.register_type<InductorInput>("electrical::Inductor");
+
+// Registration through prefab also updates that same archive.
+game_prefabs.components().register_type<Transform>();
+auto& shared_archive = game_prefabs.archive_registry(); // same object as archive
+```
+
+The borrowed archive must outlive every prefab library/view using it. Construction
+adds any missing prefab builtin codecs to that archive. No global registry is used.
+A default-constructed `ComponentRegistry` owns its storage; copying it shares that
+storage, so passing it to multiple prefab libraries does not copy the registrations.
+Moving a `SnapshotRegistry` into `ComponentRegistry` explicitly transfers ownership.
+For isolation, copy the archive explicitly before passing it in.
+
+Scoped lookup reads the current archive factories directly. There is no duplicated
+name table to synchronize; later additions, renames, and conflicting names are
+visible on the next lookup. This currently scans the registered component types
+at authoring/instantiation time; it adds no lookup to running ECS systems.
+Register or replace codecs only between prefab/archive operations, never during
+active decoding (including inside a decoder or observer). Existing template-world
+values are not retroactively rebuilt by registration changes; reload the library
+when its typed template view must reflect a changed codec.
 
 ## Supported data behavior
 
@@ -106,9 +134,50 @@ changes to the original registry do not silently change the loaded contract.
   producing numeric pins. `@gnd` can refer to a registered global ground;
   literal internal names are scoped like the Rust spawn path.
 
-Hierarchy uses `elysia::prefab::ChildOf`, an ordinary component. This is the
-prefab hierarchy contract, not an implicit dependency on a game hierarchy plugin.
-Reference resolution is explicit and rerunnable after entity changes.
+Hierarchy reuses the ECS plugin's `elysia::ChildOf` and `elysia::Children` types;
+the prefab names are aliases, not separate components. The shared implementation
+is in `elysia/hierarchy.hpp` (`elysia.hierarchy` for module consumers).
+`HierarchyPlugin` delegates to the same `install_hierarchy(World&)` function,
+so a plain prefab world does not need an App or a scheduler.
+
+Loading installs the hooks on the private template world. Spawning installs them
+on the destination world before inserting validated parent links. Children lists
+are populated immediately, including nested Use attachment points and records
+whose parents appear later in the file. Record validation uses one graph-based
+cycle check rather than repeatedly walking ancestors.
+
+```cpp
+auto instance = prefabs.spawn_class(world, "electrical::branch");
+auto root = instance.roots.at(0);
+auto entities = elysia::collect_subtree(world, root);
+auto graph = elysia::build_hierarchy_graph(world, root);
+// graph.key(node_id) gives the original Entity; components remain in world.
+
+auto authored_graph = prefabs.template_graph("electrical::branch");
+auto authored_root = prefabs.template_root("electrical::branch");
+```
+
+Both traversal functions follow Children within the selected subtree; neither
+queries all ChildOf components. ChildOf/Children are the live relationship data.
+The returned DirectedGraph is an optional snapshot, rebuilt on request after
+editing; it is not another automatically maintained cache on the root.
+
+Supported edits are `attach_child(world, parent, child)`,
+`detach_child(world, child)`, and `reparent(world, child, new_parent)`.
+Reparenting checks the child's descendants for cycles, then removes the old
+ChildOf before inserting the new one. Same-parent attachment is idempotent.
+`despawn_subtree(world, root)` deletes descendants before their parents;
+ordinary world.despawn also cascades through installed hierarchy hooks.
+
+Install hierarchy before independently inserting relationship components.
+As with world-bound observer callbacks, keep that World at a stable address
+until it is destroyed. Mutations require exclusive structural access. Direct
+writes to relationship fields, direct replacement with a different parent
+without removal, and direct edits to Children bypass this API's consistency
+contract. Hierarchy codecs are not accepted as ordinary prefab component data;
+parent links are expressed through record.parent.
+
+Reference resolution remains explicit and rerunnable after entity changes.
 
 ## Authoring, archives, and failure boundaries
 

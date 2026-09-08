@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <numeric>
+#include <limits>
 #include <stdexcept>
 #include "basis.hpp"
 #include "sparse_mat.hpp"
@@ -64,7 +65,12 @@ public:
       return it->second;
     id_type id = nodes_.size();
     nodes_.emplace_back(key);
-    id_of_.emplace(key, id);
+    try {
+      id_of_.emplace(key, id);
+    } catch (...) {
+      nodes_.pop_back();
+      throw;
+    }
     return id;
   }
 
@@ -76,7 +82,12 @@ public:
       return it->second;
     id_type id = nodes_.size();
     nodes_.emplace_back(key, w);
-    id_of_.emplace(key, id);
+    try {
+      id_of_.emplace(key, id);
+    } catch (...) {
+      nodes_.pop_back();
+      throw;
+    }
     return id;
   }
 
@@ -87,7 +98,12 @@ public:
     id_type u = add_node(from);
     id_type v = add_node(to);
     nodes_[u].out.emplace_back(v);
-    nodes_[v].in.push_back(u);
+    try {
+      nodes_[v].in.push_back(u);
+    } catch (...) {
+      nodes_[u].out.pop_back();
+      throw;
+    }
   }
 
   template <class W = EdgeW>
@@ -97,6 +113,12 @@ public:
     id_type u = add_node(from);
     id_type v = add_node(to);
     nodes_[u].out.emplace_back(v, w);
+    try {
+      nodes_[v].in.push_back(u);
+    } catch (...) {
+      nodes_[u].out.pop_back();
+      throw;
+    }
   }
 
   // ---------- 查询 ----------
@@ -130,41 +152,27 @@ public:
     return false;
   }
 
+  // Removing a node may change the last node's ID. Keys remain stable.
   bool remove_node(const Key &key) {
     auto it = id_of_.find(key);
-    if (it == id_of_.end())
-      return false;
+    if (it == id_of_.end()) return false;
+    const id_type removed = it->second;
+    const id_type last = nodes_.size() - 1;
 
-    id_type target_id = it->second;
-    id_type last_id = nodes_.size() - 1;
-
-    id_of_.erase(it);
-
-    if (target_id != last_id) {
-      for (auto &node : nodes_) {
-        auto &edges = node.out;
-        auto edge_it = std::remove_if(edges.begin(), edges.end(), [&](Edge &e) {
-          if (e.to == target_id)
-            return true;
-          if (e.to == last_id)
-            e.to = target_id;
-          return false;
-        });
-        edges.erase(edge_it, edges.end());
-      }
-
-      nodes_[target_id] = std::move(nodes_[last_id]);
-
-      const Key &moved_key = nodes_[target_id].key;
-      id_of_[moved_key] = target_id;
-    } else {
-      for (auto &node : nodes_) {
-        auto &edges = node.out;
-        std::erase_if(edges,
-                      [target_id](const Edge &e) { return e.to == target_id; });
+    // Every outgoing edge must have a matching incoming entry, including duplicates.
+    for (auto &node : nodes_) {
+      std::erase_if(node.out, [removed](const Edge &edge) { return edge.to == removed; });
+      std::erase(node.in, removed);
+      if (removed != last) {
+        for (auto &edge : node.out) if (edge.to == last) edge.to = removed;
+        for (auto &source : node.in) if (source == last) source = removed;
       }
     }
-
+    id_of_.erase(it);
+    if (removed != last) {
+      nodes_[removed] = std::move(nodes_[last]);
+      id_of_.at(nodes_[removed].key) = removed;
+    }
     nodes_.pop_back();
     return true;
   }
@@ -201,7 +209,7 @@ public:
 
     CSR<EdgeW> csr;
     csr.num_rows = n;
-    csr.num_cols = 0;
+    csr.num_cols = n;
 
     csr.indptr.resize(n + 1);
     csr.indptr[0] = 0;
@@ -210,15 +218,14 @@ public:
       csr.indptr[i + 1] = nodes_[i].out.size();
     }
 
-    std::exclusive_scan(csr.indptr.begin(), csr.indptr.end(),
-                        csr.indptr.begin(), 0);
+    std::inclusive_scan(csr.indptr.begin(), csr.indptr.end(), csr.indptr.begin());
 
     const id_type nnz = csr.indptr[n];
     csr.indices.resize(nnz);
     if constexpr (Weighted<EdgeW>)
       csr.data.resize(nnz);
 
-    std::vector<std::pair<id_type, EdgeW>> sort_buf;
+    std::conditional_t<Weighted<EdgeW>, std::vector<std::pair<id_type, EdgeW>>, WeightBox<void>> sort_buf;
     if constexpr (Weighted<EdgeW>) {
       if (sort_by_to)
         sort_buf.reserve(16);
@@ -231,8 +238,6 @@ public:
 
       for (id_type k = 0; k < count; ++k) {
         csr.indices[start + k] = src_edges[k].to;
-        if (src_edges[k].to >= csr.num_cols)
-          csr.num_cols = src_edges[k].to + 1;
 
         if constexpr (Weighted<EdgeW>) {
           csr.data[start + k] = src_edges[k].weight();
@@ -279,8 +284,7 @@ public:
       }
     }
 
-    std::exclusive_scan(csc.indptr.begin(), csc.indptr.end(),
-                        csc.indptr.begin(), 0);
+    std::inclusive_scan(csc.indptr.begin(), csc.indptr.end(), csc.indptr.begin());
 
     const id_type nnz = csc.indptr.back();
     csc.indices.resize(nnz);
@@ -304,7 +308,7 @@ public:
     }
 
     if (sort_by_from) {
-      std::vector<std::pair<id_type, EdgeW>> tmp;
+      std::conditional_t<Weighted<EdgeW>, std::vector<std::pair<id_type, EdgeW>>, WeightBox<void>> tmp;
       if constexpr (Weighted<EdgeW>)
         tmp.reserve(16);
 
@@ -337,6 +341,37 @@ public:
 
     return csc;
   }
+
+  void reserve_nodes(id_type count) {
+    nodes_.reserve(count);
+    id_of_.reserve(count);
+  }
+  void reserve_out_edges(id_type node, id_type count) { nodes_.at(node).out.reserve(count); }
+
+  // Keep the induced subgraph, preserving node order. Does not bypass removed nodes.
+  // Evaluate predicates before mutation so a predicate exception leaves the graph intact.
+  template <class Predicate> void retain_nodes(Predicate &&should_keep) {
+    constexpr id_type removed = std::numeric_limits<id_type>::max();
+    std::vector<id_type> remap(nodes_.size(), removed);
+    id_type count = 0;
+    for (id_type old = 0; old < nodes_.size(); ++old) {
+      if (should_keep(nodes_[old].key)) remap[old] = count++;
+    }
+    for (id_type old = 0; old < nodes_.size(); ++old) {
+      if (remap[old] != removed && remap[old] != old)
+        nodes_[remap[old]] = std::move(nodes_[old]);
+    }
+    nodes_.erase(nodes_.begin() + count, nodes_.end());
+    for (auto &node : nodes_) {
+      std::erase_if(node.out, [&](const Edge &edge) { return remap[edge.to] == removed; });
+      std::erase_if(node.in, [&](id_type source) { return remap[source] == removed; });
+      for (auto &edge : node.out) edge.to = remap[edge.to];
+      for (auto &source : node.in) source = remap[source];
+    }
+    id_of_.clear();
+    for (id_type id = 0; id < nodes_.size(); ++id) id_of_.emplace(nodes_[id].key, id);
+  }
+
 };
 
 } // namespace graph

@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <span>
+#include <stdexcept>
 #include "basis.hpp"
 
 #ifndef NO_UNIQUE_ADDRESS_H
@@ -28,20 +29,22 @@ template <class EdgeW> struct CSR {
   NO_UNIQUE_ADDRESS_ATTR
   std::conditional_t<Weighted<EdgeW>, std::vector<EdgeW>, WeightBox<void>> data;
 
-  id_type num_rows;
-  id_type num_cols;
+  id_type num_rows = 0;
+  id_type num_cols = 0;
 
   id_type rows() const { return num_rows; }
   id_type cols() const { return num_cols; }
   id_type nnz() const { return indices.size(); }
 
   std::span<const id_type> row_indices(id_type i) const {
-    return {&indices[indptr[i]], &indices[indptr[i + 1]]};
+    if (i >= num_rows) throw std::out_of_range("CSR row out of range");
+    return std::span<const id_type>(indices).subspan(indptr[i], indptr[i + 1] - indptr[i]);
   }
 
   auto row_weights(id_type i) const {
+    if (i >= num_rows) throw std::out_of_range("CSR row out of range");
     if constexpr (Weighted<EdgeW>) {
-      return std::span<const EdgeW>{&data[indptr[i]], &data[indptr[i + 1]]};
+      return std::span<const EdgeW>(data).subspan(indptr[i], indptr[i + 1] - indptr[i]);
     } else {
       return std::span<const int>{};
     }
@@ -58,15 +61,16 @@ template <class EdgeW> struct CSC {
   NO_UNIQUE_ADDRESS_ATTR
   std::conditional_t<Weighted<EdgeW>, std::vector<EdgeW>, WeightBox<void>> data;
 
-  id_type num_rows;
-  id_type num_cols;
+  id_type num_rows = 0;
+  id_type num_cols = 0;
 
   id_type rows() const { return num_rows; }
   id_type cols() const { return num_cols; }
   id_type nnz() const { return indices.size(); }
 
   std::span<const id_type> col_indices(id_type j) const {
-    return {&indices[indptr[j]], &indices[indptr[j + 1]]};
+    if (j >= num_cols) throw std::out_of_range("CSC column out of range");
+    return std::span<const id_type>(indices).subspan(indptr[j], indptr[j + 1] - indptr[j]);
   }
 };
 
