@@ -2,9 +2,3 @@
 .xmake/
 .cache/
 *.log
-prefab/README.md
-prefab/include/elysia/prefab/native.hpp
-prefab/include/elysia/prefab/prefab.hpp
-prefab/module/elysia_prefab.cppm
-prefab/module/smoke.cpp
-prefab/tests/native_test.cpp
