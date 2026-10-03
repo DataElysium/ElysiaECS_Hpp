@@ -5,6 +5,8 @@ set_toolchains("clang")
 
 add_rules("mode.debug", "mode.release")
 
+option("perf_overlay", {default = true, description = "Enable per-system execution profiles"})
+
 -- Core Dependencies
 add_requires("gtest", "taskflow", "nameof", "raylib")
 
@@ -25,6 +27,7 @@ target("ElysiaHeader")
     add_includedirs("include", {public = true})
     add_includedirs("thirdparty/ForkUnion/include", {public = true})
     add_packages("nameof", "taskflow", {public = true})
+    if has_config("perf_overlay") then add_defines("ELYSIA_PERF_OVERLAY", {public = true}) end
 target_end()
 
 target("ElysiaHeaderSmoke")
